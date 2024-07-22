@@ -69,11 +69,6 @@ function App() {
     setPages(Array(event.target.files.length).fill(''));
   };
 
-  const handlePageChange = (index, event) => {
-    const newPages = [...pages];
-    newPages[index] = event.target.value;
-    setPages(newPages);
-  };
 
   const handleUpload = async () => {
     const formData = new FormData();
@@ -117,7 +112,7 @@ function App() {
       {!token && (
         <>
           <div>
-            <h2>Register</h2>
+            <h2>Register/Login</h2>
             <input
               type="email"
               placeholder="Email"
@@ -142,21 +137,6 @@ function App() {
                 <button onClick={handleVerifyOtp}>Verify OTP</button>
               </>
             )}
-          </div>
-          <div>
-            <h2>Login</h2>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
             <button onClick={handleLogin}>Login</button>
             <button onClick={handleForgotPassword}>Forgot Password</button>
             {showResetPassword && (
@@ -176,6 +156,7 @@ function App() {
                 <button onClick={handleResetPassword}>Reset Password</button>
               </>
             )}
+
           </div>
         </>
       )}
@@ -201,7 +182,7 @@ function App() {
                 <li key={job._id}>
                   <p>Job ID: {job._id}</p>
                   <p>Status: {job.status}</p>
-                  <p>Price: Rs. {job.price}</p>
+                  <p>Price: ${job.price}</p>
                   <p>Documents:</p>
                   <ul>
                     {job.documents.map((doc, index) => (
