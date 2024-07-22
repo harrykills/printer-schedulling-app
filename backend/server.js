@@ -9,10 +9,11 @@ const path = require('path');
 const { PDFDocument } = require('pdf-lib');
 const { execFile } = require('child_process');
 const sharp = require('sharp');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const SECRET_KEY = 'your_secret_key'; // Make sure to use a secure key in production
+const SECRET_KEY = 'your_secret_key'; // Use a secure key in production
 
 app.use(cors());
 app.use(express.json());
@@ -21,8 +22,9 @@ mongoose.connect('mongodb://localhost:27017/printerScheduling', { useNewUrlParse
 
 // Define User Schema and Model
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true },
-  password: { type: String, required: true }
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  otp: { type: String, required: false }
 });
 
 const User = mongoose.model('User', userSchema);
@@ -62,31 +64,26 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// User registration route
-app.post('/register', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ username, password: hashedPassword });
-    await user.save();
-    res.status(201).json({ message: 'User registered successfully' });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+// Email transporter setup
+const transporter = nodemailer.createTransport({
+  service: 'Gmail',
+  auth: {
+    user: 'aitprintshop1@gmail.com',
+    pass: 'ykvk hydd jrew psjl' // Use the app-specific password generated
   }
 });
 
-// User login route
-app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  const user = await User.findOne({ username });
-  if (user && await bcrypt.compare(password, user.password)) {
-    const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: '1h' });
-    res.json({ token });
-  } else {
-    res.status(400).json({ error: 'Invalid username or password' });
-  }
-});
+// Helper function to send OTP
+const sendOTP = async (email, otp) => {
+  await transporter.sendMail({
+    from: 'aitprintshop1@gmail.com',
+    to: email,
+    subject: 'Your OTP Code',
+    text: `Your OTP code is ${otp}`
+  });
+};
 
+// Helper function to count pages
 const countPages = async (filePath, mimetype) => {
   if (mimetype === 'application/pdf') {
     const pdfBytes = fs.readFileSync(filePath);
@@ -116,27 +113,115 @@ const countPages = async (filePath, mimetype) => {
   }
 };
 
-// Route for uploading documents and creating a job
+// User registration route with OTP
+app.post('/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
+    await sendOTP(email, otp);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ email, password: hashedPassword, otp });
+    await user.save();
+    res.status(201).json({ message: 'OTP sent to email. Please verify the OTP to complete registration.' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// OTP verification route
+app.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email });
+    if (user && user.otp === otp) {
+      user.otp = undefined; // Clear OTP after verification
+      await user.save();
+      res.json({ message: 'Registration successful. You can now log in.' });
+    } else {
+      res.status(400).json({ error: 'Invalid OTP' });
+    }
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// User login route
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+  if (user) {
+    if (!user.otp) {
+      if (await bcrypt.compare(password, user.password)) {
+        const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: '1h' });
+        return res.json({ token });
+      } else {
+        return res.status(400).json({ error: 'Invalid email or password' });
+      }
+    } else {
+      return res.status(400).json({ error: 'Please verify your OTP first' });
+    }
+  } else {
+    res.status(400).json({ error: 'Invalid email or password' });
+  }
+});
+
+// Forgot password route
+app.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ error: 'User not found' });
+    }
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
+    await sendOTP(email, otp);
+    user.otp = otp;
+    await user.save();
+    res.json({ message: 'OTP sent to email' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Verify OTP and reset password route
+app.post('/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    const user = await User.findOne({ email });
+    if (user && user.otp === otp) {
+      user.password = await bcrypt.hash(newPassword, 10);
+      user.otp = undefined; // Clear OTP after resetting the password
+      await user.save();
+      res.json({ message: 'Password reset successful' });
+    } else {
+      res.status(400).json({ error: 'Invalid OTP' });
+    }
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Document upload route
 app.post('/jobs', authenticateToken, upload.array('documents'), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'Please select a file' });
     }
-
     const documents = await Promise.all(req.files.map(async (file) => {
       const pages = await countPages(file.path, file.mimetype);
       return { filename: file.filename, pages };
     }));
-
     const totalPages = documents.reduce((sum, doc) => sum + doc.pages, 0);
     const price = totalPages * 2;
-
     const job = new Job({
       userId: req.userId,
       documents,
       price
     });
-
     await job.save();
     res.status(201).json(job);
   } catch (err) {
@@ -144,10 +229,14 @@ app.post('/jobs', authenticateToken, upload.array('documents'), async (req, res)
   }
 });
 
-// Route for retrieving user's jobs
+// Fetch user jobs route
 app.get('/jobs', authenticateToken, async (req, res) => {
-  const jobs = await Job.find({ userId: req.userId });
-  res.json(jobs);
+  try {
+    const jobs = await Job.find({ userId: req.userId });
+    res.json(jobs);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, () => {
