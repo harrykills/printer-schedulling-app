@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './App.css'; // Ensure this path matches your CSS file location
+import './App.css'; 
 
 function App() {
   const [email, setEmail] = useState('');

@@ -13,7 +13,9 @@ const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const SECRET_KEY = 'your_secret_key'; // Use a secure key in production
+const SECRET_KEY = 'CrIsTaN@#12980'; 
+const ADMIN_EMAILS = ['admin1@example.com', 'admin2@example.com']; 
+
 
 app.use(cors());
 app.use(express.json());
@@ -31,7 +33,7 @@ const User = mongoose.model('User', userSchema);
 
 // Define Job Schema and Model
 const jobSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: String, required: true },
   documents: [{ filename: String, pages: Number }],
   price: Number,
   status: { type: String, default: 'Pending' }
@@ -59,7 +61,7 @@ const authenticateToken = (req, res, next) => {
   if (!token) return res.sendStatus(401);
   jwt.verify(token, SECRET_KEY, (err, user) => {
     if (err) return res.sendStatus(403);
-    req.userId = user.id;
+    req.userId = user.email;
     next();
   });
 };
@@ -69,7 +71,7 @@ const transporter = nodemailer.createTransport({
   service: 'Gmail',
   auth: {
     user: 'aitprintshop1@gmail.com',
-    pass: 'ykvk hydd jrew psjl' // Use the app-specific password generated
+    pass: 'ykvk hydd jrew psjl'
   }
 });
 
@@ -121,7 +123,7 @@ app.post('/register', async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ error: 'User already exists' });
     }
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
     await sendOTP(email, otp);
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword, otp });
@@ -156,7 +158,7 @@ app.post('/login', async (req, res) => {
   if (user) {
     if (!user.otp) {
       if (await bcrypt.compare(password, user.password)) {
-        const token = jwt.sign({ id: user._id }, SECRET_KEY, { expiresIn: '1h' });
+        const token = jwt.sign({ id: user._id, email : user.email}, SECRET_KEY, { expiresIn: '1h' });
         return res.json({ token });
       } else {
         return res.status(400).json({ error: 'Invalid email or password' });
@@ -177,7 +179,7 @@ app.post('/forgot-password', async (req, res) => {
     if (!user) {
       return res.status(400).json({ error: 'User not found' });
     }
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); 
     await sendOTP(email, otp);
     user.otp = otp;
     await user.save();
