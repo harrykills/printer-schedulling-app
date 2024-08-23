@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 // Use the same name as the component defined in Login_page.jsx
-import Login_page from './components/Login_page'; 
+import Login_page from './components/Login_page';
 
 
 function App() {
