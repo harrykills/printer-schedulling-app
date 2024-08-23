@@ -1,74 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './App.css'; 
+import './App.css';
+// Use the same name as the component defined in Login_page.jsx
+import Login_page from './components/Login_page'; 
+
 
 function App() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [showOtpInput, setShowOtpInput] = useState(false);
-  const [showResetPassword, setShowResetPassword] = useState(false);
   const [token, setToken] = useState('');
   const [documents, setDocuments] = useState([]);
   const [pages, setPages] = useState([]);
   const [jobs, setJobs] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [searchEmail, setSearchEmail] = useState('');
+  const [searchedUser, setSearchedUser] = useState(null);
 
-  const handleRegister = async () => {
-    try {
-      const response = await axios.post('http://localhost:5000/register', { email, password });
-      alert(response.data.message);
-      setShowOtpInput(true);
-    } catch (error) {
-      alert(error.response.data.error);
+  useEffect(() => {
+    if (token) {
+      fetchJobs();
+      checkAdminStatus();
     }
-  };
-
-  const handleVerifyOtp = async () => {
-    try {
-      const response = await axios.post('http://localhost:5000/verify-otp', { email, otp });
-      alert(response.data.message);
-      setShowOtpInput(false);
-    } catch (error) {
-      alert(error.response.data.error);
-    }
-  };
-
-  const handleLogin = async () => {
-    try {
-      const response = await axios.post('http://localhost:5000/login', { email, password });
-      setToken(response.data.token);
-      alert('Login successful');
-    } catch (error) {
-      alert('Invalid email or password');
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    try {
-      const response = await axios.post('http://localhost:5000/forgot-password', { email });
-      alert(response.data.message);
-      setShowResetPassword(true);
-    } catch (error) {
-      alert(error.response.data.error);
-    }
-  };
-
-  const handleResetPassword = async () => {
-    try {
-      const response = await axios.post('http://localhost:5000/reset-password', { email, otp, newPassword });
-      alert(response.data.message);
-      setShowResetPassword(false);
-    } catch (error) {
-      alert(error.response.data.error);
-    }
-  };
+  }, [token]);
 
   const handleFileChange = (event) => {
     setDocuments(event.target.files);
     setPages(Array(event.target.files.length).fill(''));
   };
-
 
   const handleUpload = async () => {
     const formData = new FormData();
@@ -77,11 +33,11 @@ function App() {
       formData.append('pages', pages[i]);
     }
     try {
-      const response = await axios.post('http://localhost:5000/jobs', formData, {
+      await axios.post('http://localhost:5000/jobs', formData, {
         headers: {
           'Authorization': token,
-          'Content-Type': 'multipart/form-data'
-        }
+          'Content-Type': 'multipart/form-data',
+        },
       });
       alert('Files uploaded successfully');
     } catch (error) {
@@ -92,7 +48,7 @@ function App() {
   const fetchJobs = async () => {
     try {
       const response = await axios.get('http://localhost:5000/jobs', {
-        headers: { 'Authorization': token }
+        headers: { Authorization: token },
       });
       setJobs(response.data);
     } catch (error) {
@@ -100,66 +56,50 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (token) {
-      fetchJobs();
+  const checkAdminStatus = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/admin/check', {
+        headers: { Authorization: token },
+      });
+      setIsAdmin(response.data.isAdmin);
+    } catch (err) {
+      console.error('Error checking admin status:', err);
     }
-  }, [token]);
+  };
+
+  const searchUserByEmail = async () => {
+    try {
+      const response = await axios.get(
+        `http://localhost:5000/admin/users?email=${searchEmail}`,
+        {
+          headers: { Authorization: token },
+        }
+      );
+      setSearchedUser(response.data);
+    } catch (error) {
+      console.error('Error searching user:', error);
+    }
+  };
+
+  const updateJobStatus = async (id, status) => {
+    try {
+      await axios.patch(
+        `http://localhost:5000/admin/jobs/${id}/status`,
+        { status },
+        {
+          headers: { Authorization: token },
+        }
+      );
+      fetchJobs(); // Refresh the jobs list
+    } catch (error) {
+      console.error('Error updating job status:', error);
+    }
+  };
 
   return (
     <div className="App">
       <h1>Printer Scheduling App</h1>
-      {!token && (
-        <>
-          <div>
-            <h2>Register/Login</h2>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <button onClick={handleRegister}>Register</button>
-            {showOtpInput && (
-              <>
-                <input
-                  type="text"
-                  placeholder="Enter OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                />
-                <button onClick={handleVerifyOtp}>Verify OTP</button>
-              </>
-            )}
-            <button onClick={handleLogin}>Login</button>
-            <button onClick={handleForgotPassword}>Forgot Password</button>
-            {showResetPassword && (
-              <>
-                <input
-                  type="text"
-                  placeholder="Enter OTP"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                />
-                <input
-                  type="password"
-                  placeholder="New Password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
-                <button onClick={handleResetPassword}>Reset Password</button>
-              </>
-            )}
-
-          </div>
-        </>
-      )}
+      {!token && <Login_page setToken={setToken} />}
       {token && (
         <>
           <div>
@@ -167,9 +107,7 @@ function App() {
             <input type="file" multiple onChange={handleFileChange} />
             {Array.from(documents).map((doc, index) => (
               <div key={index}>
-                <label>
-                  {doc.name} 
-                </label>
+                <label>{doc.name}</label>
               </div>
             ))}
             <button onClick={handleUpload}>Upload</button>
@@ -186,13 +124,66 @@ function App() {
                   <p>Documents:</p>
                   <ul>
                     {job.documents.map((doc, index) => (
-                      <li key={index}>{doc.filename} - {doc.pages} pages</li>
+                      <li key={index}>
+                        {doc.filename} - {doc.pages} pages
+                      </li>
                     ))}
                   </ul>
                 </li>
               ))}
             </ul>
           </div>
+          {isAdmin && (
+            <div>
+              <h2>Admin Dashboard</h2>
+              <div>
+                <h3>All Jobs</h3>
+                <ul>
+                  {jobs.map((job) => (
+                    <li key={job._id}>
+                      <p>Job ID: {job._id}</p>
+                      <p>Status: {job.status}</p>
+                      <p>Price: ${job.price}</p>
+                      <p>Documents:</p>
+                      <ul>
+                        {job.documents.map((doc, index) => (
+                          <li key={index}>
+                            {doc.filename} - {doc.pages} pages
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        onClick={() => updateJobStatus(job._id, 'Completed')}
+                      >
+                        Mark as Completed
+                      </button>
+                      <button
+                        onClick={() => updateJobStatus(job._id, 'Pending')}
+                      >
+                        Mark as Pending
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3>Search User by Email</h3>
+                <input
+                  type="email"
+                  placeholder="Enter email"
+                  value={searchEmail}
+                  onChange={(e) => setSearchEmail(e.target.value)}
+                />
+                <button onClick={searchUserByEmail}>Search</button>
+                {searchedUser && (
+                  <div>
+                    <p>User ID: {searchedUser._id}</p>
+                    <p>Email: {searchedUser.email}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
