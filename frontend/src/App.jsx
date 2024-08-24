@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
-// Use the same name as the component defined in Login_page.jsx
-import Login_page from './components/Login_page';
-
+import LoginPage from './components/Login_page';
 
 function App() {
   const [token, setToken] = useState('');
@@ -96,12 +94,18 @@ function App() {
     }
   };
 
+  const handleLogout = () => {
+    setToken('');
+    alert('Logged out successfully');
+  };
+
   return (
     <div className="App">
       <h1>Printer Scheduling App</h1>
-      {!token && <Login_page setToken={setToken} />}
+      {!token && <LoginPage setToken={setToken} />}
       {token && (
         <>
+          <button onClick={handleLogout}>Logout</button> {/* Logout Button */}
           <div>
             <h2>Upload Documents</h2>
             <input type="file" multiple onChange={handleFileChange} />

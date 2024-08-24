@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -13,8 +14,8 @@ const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const SECRET_KEY = 'CrIsTaN@#12980';
-const ADMIN_EMAILS = ['aitprintshop1@gmail.com', 'admin2@example.com'];
+const SECRET_KEY = process.env.SECRET_KEY;
+const ADMIN_EMAILS = process.env.ADMIN_EMAILS.split(',');
 
 app.use(cors());
 app.use(express.json());
@@ -65,8 +66,8 @@ const authenticateToken = (req, res, next) => {
 const transporter = nodemailer.createTransport({
   service: 'Gmail',
   auth: {
-    user: 'aitprintshop1@gmail.com',
-    pass: 'ykvk hydd jrew psjl'
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
