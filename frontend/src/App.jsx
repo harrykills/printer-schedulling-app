@@ -54,6 +54,7 @@ function App() {
     }
   };
 
+
   const checkAdminStatus = async () => {
     try {
       const response = await axios.get('http://localhost:5000/admin/check', {
@@ -68,8 +69,9 @@ function App() {
   const searchUserByEmail = async () => {
     try {
       const response = await axios.get(
-        `http://localhost:5000/admin/users?email=${searchEmail}`,
+        `http://localhost:5000/admin/users`,
         {
+          params: { email: searchEmail },
           headers: { Authorization: token },
         }
       );
@@ -78,6 +80,7 @@ function App() {
       console.error('Error searching user:', error);
     }
   };
+  
 
   const updateJobStatus = async (id, status) => {
     try {
@@ -93,9 +96,11 @@ function App() {
       console.error('Error updating job status:', error);
     }
   };
+  
 
   const handleLogout = () => {
     setToken('');
+    setDocuments([]); // Clear the file upload field
     alert('Logged out successfully');
   };
 
@@ -123,6 +128,7 @@ function App() {
               {jobs.map((job) => (
                 <li key={job._id}>
                   <p>Job ID: {job._id}</p>
+                  <p>Job Number: {job.jobNumber}</p>
                   <p>Status: {job.status}</p>
                   <p>Price: ${job.price}</p>
                   <p>Documents:</p>

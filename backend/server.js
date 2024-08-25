@@ -32,12 +32,16 @@ const User = mongoose.model('User', userSchema);
 
 const jobSchema = new mongoose.Schema({
   userId: { type: String, required: true },
+  jobNumber: { type: Number, required: true, unique: true },
   documents: [{ filename: String, pages: Number }],
   price: Number,
   status: { type: String, default: 'Pending' }
 });
 
 const Job = mongoose.model('Job', jobSchema);
+
+// Track the highest job number globally
+let globalJobNumber = 0;
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -201,18 +205,38 @@ app.post('/jobs', authenticateToken, upload.array('documents'), async (req, res)
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'Please select a file' });
     }
+    
+    // Increment the global job number
+    globalJobNumber += 1;
+    
     const documents = await Promise.all(req.files.map(async (file) => {
       const pages = await countPages(file.path, file.mimetype);
       return { filename: file.filename, pages };
     }));
+    
     const totalPages = documents.reduce((sum, doc) => sum + doc.pages, 0);
     const price = totalPages * 2;
+    
     const job = new Job({
       userId: req.userId,
+      jobNumber: globalJobNumber,
       documents,
       price
     });
+    
     await job.save();
+    
+    // Create a folder for the job
+    const uploadPath = path.join(__dirname, 'uploads', req.userId.toString(), `Job no.${globalJobNumber}`);
+    fs.mkdirSync(uploadPath, { recursive: true });
+    
+    // Move files to the correct folder
+    req.files.forEach(file => {
+      const oldPath = file.path;
+      const newPath = path.join(uploadPath, file.filename);
+      fs.renameSync(oldPath, newPath);
+    });
+    
     res.status(201).json(job);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -232,61 +256,56 @@ app.get('/admin/check', authenticateToken, (req, res) => {
   res.json({ isAdmin: req.isAdmin });
 });
 
-// Fetch all jobs for admin
 app.get('/admin/jobs', authenticateToken, async (req, res) => {
-  if (!req.isAdmin) return res.status(403).json({ error: 'Access denied' });
-  
+  if (!req.isAdmin) {
+    return res.sendStatus(403);
+  }
   try {
-    const jobs = await Job.find({});
+    const jobs = await Job.find();
     res.json(jobs);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// Search users by email (admin only)
-app.get('/admin/users', authenticateToken, async (req, res) => {
-  if (!req.isAdmin) return res.status(403).json({ error: 'Access denied' });
-  
-  const { email } = req.query;
-  try {
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    
-    res.json(user);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+app.patch('/admin/jobs/:id/status', authenticateToken, async (req, res) => {
+  if (!req.isAdmin) {
+    return res.sendStatus(403);
   }
-});
-
-// Update job status (admin only)
-app.patch('/admin/jobs/:jobId/status', authenticateToken, async (req, res) => {
-  if (!req.isAdmin) return res.status(403).json({ error: 'Access denied' });
-  
-  const { jobId } = req.params;
-  const { status } = req.body;
-  
   try {
-    const job = await Job.findById(jobId);
-    if (!job) return res.status(404).json({ error: 'Job not found' });
-    
+    const { id } = req.params;
+    const { status } = req.body;
+    const job = await Job.findById(id);
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
     job.status = status;
     await job.save();
-    
     res.json(job);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// Download documents (admin only)
-app.get('/admin/jobs/:jobId/documents/:filename', authenticateToken, (req, res) => {
-  if (!req.isAdmin) return res.status(403).json({ error: 'Access denied' });
-
-  const { jobId, filename } = req.params;
-  const filePath = path.join(__dirname, 'uploads', req.userId.toString(), filename);
-  
-  res.download(filePath);
+app.get('/admin/users', authenticateToken, async (req, res) => {
+  if (!req.isAdmin) {
+    return res.sendStatus(403);
+  }
+  try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json(user);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
+
+
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
